@@ -1,10 +1,15 @@
+use std::io::Read;
+
 fn read_version(transaction_hex: &str) -> u32 {
     let transaction_bytes = hex::decode(transaction_hex).unwrap();
-    let version_bytes: [u8; 4] = (&transaction_bytes[0..4]).try_into().unwrap();
-    println!("version bytes: {:?}", version_bytes);
-    let vector = version_bytes.to_vec();
-    println!("Quiz exercise 7 vector: {:?}", vector);
-    u32::from_le_bytes(version_bytes)
+    let mut bytes_slice = transaction_bytes.as_slice();
+
+    // Read slice into a buffer
+    let mut buffer = [0; 4];
+    bytes_slice.read(&mut buffer).unwrap();
+    println!("version bytes: {:?}", buffer);
+
+    u32::from_le_bytes(buffer)
 }
 
 fn main() {
