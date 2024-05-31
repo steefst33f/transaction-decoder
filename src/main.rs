@@ -44,6 +44,10 @@ fn main() {
     byte_slice.read(&mut input_count).unwrap();
     assert_eq!(input_count, [2_u8]);
 
-    let vec = ByteVector(vec![0, 0, 0, 0, 0]);
+    let mut vec = ByteVector(vec![1, 0, 4, 0, 3]);
     println!("Vec: {}", vec);
+
+    // vec deref to slice, so slice's sort method is available to vec
+    vec.0.sort(); 
+    println!("Sorted Vec: {}", vec);
 }
