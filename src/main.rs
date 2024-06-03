@@ -50,4 +50,26 @@ fn main() {
     // vec deref to slice, so slice's sort method is available to vec
     vec.0.sort(); 
     println!("Sorted Vec: {}", vec);
+
+    let mut s1 = String::from("hello");
+    let len = calculate_length(&mut s1);
+    println!("The length of '{}' is {}.", &s1, len);
+
+    let arr = [0, 1, 2, 3];
+    let len = calculate_len(arr);
+    println!("The len of {:?} is {}.", arr, len);
+
+    let v = vec![1, 2, 3, 4, 5, 6];
+    let r = &v;
+    let aside = v; // vector data on the heap is now moved into `aside` and `v` becomes uninitialized
+    // r[0] // r still points to v, which doesn't point to anything and so is a dangling pointer
+}
+
+fn calculate_length(s: &mut String) -> usize {
+    s.pop();
+    s.len()
+}
+
+fn calculate_len(mut arr: [u8; 4]) -> usize {
+    arr.len()
 }
