@@ -45,23 +45,24 @@ fn main() {
 
 fn read_compact_size_integer(bytes_slice: &mut &[u8]) -> u64 {
     let mut compact_size = [0; 1];
-
     bytes_slice.read(&mut compact_size).unwrap();
-    if compact_size[0] <= 252 {
-        return compact_size[0] as u64;
-    } else if compact_size[0] == 253 {
-        let mut buffer = [0; 2];
-        bytes_slice.read(&mut buffer).unwrap();
-        u16::from_le_bytes(buffer) as u64
-    } else if compact_size[0] == 254 {
-        let mut buffer = [0; 4];
-        bytes_slice.read(&mut buffer).unwrap();
-        u32::from_le_bytes(buffer) as u64
-    } else if compact_size[0] == 255 {
-        let mut buffer = [0; 8];
-        bytes_slice.read(&mut buffer).unwrap();
-        u64::from_le_bytes(buffer) as u64
-    } else {
-        panic!("unvalid compact size!");
+    
+    match compact_size[0] {
+        0..=252 => compact_size[0] as u64,
+        253 => {
+            let mut buffer = [0; 2];
+            bytes_slice.read(&mut buffer).unwrap();
+            u16::from_le_bytes(buffer) as u64
+        },
+        254 => {
+            let mut buffer = [0; 4];
+            bytes_slice.read(&mut buffer).unwrap();
+            u32::from_le_bytes(buffer) as u64
+        },
+        255 => {
+            let mut buffer = [0; 8];
+            bytes_slice.read(&mut buffer).unwrap();
+            u64::from_le_bytes(buffer) as u64
+        }
     }
 }
