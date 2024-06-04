@@ -41,6 +41,10 @@ fn main() {
 
     let compact_size = read_compact_size_integer(&mut byte_slice);
     println!("Compact Size: {}", compact_size);
+
+    // Quiz 10: a valid transaction needs at least one input, so it cannot be zero and would get invalidated by old nodes. 
+    // If the byte afer version is zero, the byte after it should be one to indicate its a segwit transaction.
+    // Old nodes will ignore this. Or better yet, never recieve this information on request from a new node that does support segwit.
 }
 
 fn read_compact_size_integer(bytes_slice: &mut &[u8]) -> u64 {
