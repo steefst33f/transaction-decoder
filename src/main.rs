@@ -47,7 +47,7 @@ fn main() {
     // Old nodes will ignore this. Or better yet, never recieve this information on request from a new node that does support segwit.
 }
 
-fn read_compact_size_integer(bytes_slice: &mut &[u8]) -> u64 {
+pub fn read_compact_size_integer(bytes_slice: &mut &[u8]) -> u64 {
     let mut compact_size = [0; 1];
     bytes_slice.read(&mut compact_size).unwrap();
     
@@ -68,5 +68,52 @@ fn read_compact_size_integer(bytes_slice: &mut &[u8]) -> u64 {
             bytes_slice.read(&mut buffer).unwrap();
             u64::from_le_bytes(buffer) as u64
         }
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use super::read_compact_size_integer;
+
+    #[test]
+    fn test_read_compact_size_integer_one_byte() {
+        let mut bytes = [1_u8].as_slice();
+        let length = read_compact_size_integer(&mut bytes);
+        assert_eq!(length, 1_u64);
+    }
+
+    #[test]
+    fn test_read_compact_size_integer_three_bytes() {
+        let mut bytes = [253_u8, 0, 1].as_slice();
+        let length = read_compact_size_integer(&mut bytes);
+        assert_eq!(length, 256_u64);
+    }
+
+    #[test]
+    fn test_read_compact_size_integer_five_bytes() {
+        let mut bytes = [254_u8, 0, 0, 0, 1].as_slice();
+        let length = read_compact_size_integer(&mut bytes);
+        assert_eq!(length, 256_u64.pow(3));
+    }
+
+    #[test]
+    fn test_read_compact_size_integer_nine_bytes() {
+
+        let mut bytes = [255_u8, 0, 0, 0, 0, 0, 0, 0, 1].as_slice();
+        let length = read_compact_size_integer(&mut bytes);
+        assert_eq!(length, 256_u64.pow(7));
+    }
+
+    #[test]
+    fn test_read_compact_size_integer_real_example() {
+        // https://mempool.space/tx/52539a56b1eb890504b775171923430f0355eb836a57134ba598170a2f8980c1
+        // fd is 253
+        // transaction has 20,000 empty inputs
+        let hex = "fd204e";
+        let decoded = hex::decode(hex).unwrap();
+        let mut bytes = decoded.as_slice();
+        let length = read_compact_size_integer(&mut bytes);
+        let expected_length = 20_000_u64;
+        assert_eq!(length, expected_length);
     }
 }
