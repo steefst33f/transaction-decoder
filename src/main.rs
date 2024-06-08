@@ -1,6 +1,6 @@
 use std::io::Read;
 use std::fmt::Debug;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
@@ -13,16 +13,26 @@ struct Input {
 #[derive(Debug, Serialize)]
 
 pub struct Amount(u64);
-impl Amount {
-    pub fn to_btc(&self) -> f64 {
+trait BitcoinValue {
+    fn to_btc(&self) -> f64;
+}
+
+impl BitcoinValue for Amount {
+    fn to_btc(&self) -> f64 {
         self.0 as f64 / 100_000_000.0
     }
 }
 
 #[derive(Debug, Serialize)]
 struct Output {
-    amount: f64,
+    #[serde(serialize_with = "as_btc")]
+    amount: Amount,
     output_script: String,
+}
+
+fn as_btc<T: BitcoinValue, S: Serializer>(t: &T, s: S) -> Result<S::Ok, S::Error> {
+    let btc = t.to_btc();
+    s.serialize_f64(btc)
 }
 
 #[derive(Debug, Serialize)]
@@ -43,6 +53,10 @@ fn read_u64(bytes_slice: &mut &[u8]) -> u64 {
     let mut buffer = [0; 8];
     bytes_slice.read(&mut buffer).unwrap();
     u64::from_le_bytes(buffer)
+}
+
+fn read_amount(bytes_slice: &mut &[u8]) -> Amount {
+    Amount(read_u64(bytes_slice))
 }
 
 fn main() {
@@ -84,7 +98,7 @@ fn main() {
     let mut outputs: Vec<Output> = vec![];
 
     for _ in 0..output_count {
-        let amount = Amount(read_u64(&mut bytes_slice)).to_btc();
+        let amount = read_amount(&mut bytes_slice);
         let output_script = read_script(&mut bytes_slice);
 
         outputs.push(Output {
@@ -92,7 +106,6 @@ fn main() {
             output_script
         });
     }
-
 
     let transaction = Transaction {
         version,
