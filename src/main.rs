@@ -1,18 +1,13 @@
-use std::io::{BufRead, Read};
-use std::fmt::{ Display, Result, Formatter};
+use std::io::Read;
+use std::fmt::Debug;
 
-use hex::ToHex;
-struct ByteVector(Vec<u8>);
-
-impl Display for ByteVector {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        write!(f, "[ ")?;
-        for v in &self.0 {
-            write!(f, "{}, ", v)?;
-        }
-        write!(f, "]")?;
-        Ok(())
-    }
+#[allow(dead_code)]
+#[derive(Debug)]
+struct Input {
+    txid: [u8; 32],
+    output_index: u32,
+    script: Vec<u8>,
+    sequence: u32,
 }
 
 fn read_u32(bytes_slice: &mut &[u8]) -> u32 {
@@ -33,6 +28,8 @@ fn main() {
     let input_length = read_compact_size_integer(&mut bytes_slice);
     println!("input_length: {}", input_length);
 
+    let mut inputs = vec![];
+
     for input_number in 0..input_length {
         let txid = read_txid(&mut bytes_slice);
         println!("txid[{}] = {:?}",input_number, txid);
@@ -40,11 +37,18 @@ fn main() {
         let output_index = read_u32(&mut bytes_slice);
         println!("output_index: {}", output_index);
 
-        let unlocking_script = read_unlocking_script(&mut bytes_slice);
-        println!("unlocking_script: {:?}", unlocking_script);
+        let script = read_unlocking_script(&mut bytes_slice);
+        println!("unlocking_script: {:?}", script);
 
-        let sequence_number = read_u32(&mut bytes_slice);
-        println!("sequence_number: {}", sequence_number);
+        let sequence = read_u32(&mut bytes_slice);
+        println!("sequence: {}", sequence);
+
+        inputs.push(Input {
+            txid,
+            output_index,
+            script,
+            sequence,
+        });
     }
 }
 
