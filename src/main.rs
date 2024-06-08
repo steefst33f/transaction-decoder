@@ -1,13 +1,20 @@
 use std::io::Read;
 use std::fmt::Debug;
+use serde::Serialize;
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct Input {
-    txid: [u8; 32],
+    txid: String,
     output_index: u32,
-    script: Vec<u8>,
+    script: String,
     sequence: u32,
+}
+
+#[derive(Debug, Serialize)]
+struct Transaction {
+    version: u32,
+    inputs: Vec<Input>,
 }
 
 fn read_u32(bytes_slice: &mut &[u8]) -> u32 {
@@ -50,22 +57,30 @@ fn main() {
             sequence,
         });
     }
+
+    let transaction = Transaction {
+        version,
+        inputs
+    };
+
+    let json_transaction = serde_json::to_string_pretty(&transaction).unwrap();
+    println!("Transaction: {}", json_transaction);
 }
 
-fn read_unlocking_script(bytes_slice: &mut &[u8]) -> Vec<u8> {
+fn read_unlocking_script(bytes_slice: &mut &[u8]) -> String {
     let script_size = read_compact_size_integer(bytes_slice) as usize;
     println!("script_size: {}", script_size);
     let mut buffer = vec![0_u8; script_size];
 
     bytes_slice.read(&mut buffer).unwrap();
-    buffer
+    hex::encode(buffer)
 }
 
-fn read_txid(bytes_slice:&mut &[u8]) -> [u8; 32] {
+fn read_txid(bytes_slice:&mut &[u8]) -> String {
     let mut buffer = [0; 32];
     _ = bytes_slice.read(&mut buffer);
     buffer.reverse();
-    buffer
+    hex::encode(buffer)
 }
 
 pub fn read_compact_size_integer(bytes_slice: &mut &[u8]) -> u64 {
