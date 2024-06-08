@@ -1,5 +1,7 @@
-use std::io::Read;
+use std::io::{BufRead, Read};
 use std::fmt::{ Display, Result, Formatter};
+
+use hex::ToHex;
 struct ByteVector(Vec<u8>);
 
 impl Display for ByteVector {
@@ -13,16 +15,10 @@ impl Display for ByteVector {
     }
 }
 
-fn read_version(bytes_slice: &mut &[u8]) -> u32 {
-    println!("bytes_slice memory address before reading {:p}", *bytes_slice);
+fn read_u32(bytes_slice: &mut &[u8]) -> u32 {
     // Read slice into a buffer
     let mut buffer = [0; 4];
     bytes_slice.read(&mut buffer).unwrap();
-    println!("version bytes: {:?}", buffer);
-
-    println!("bytes_slice memory address after reading {:p}\n", *bytes_slice);
-    println!("bytes_slice: {:?}\n", bytes_slice);
-
     u32::from_le_bytes(buffer)
 }
 
@@ -31,12 +27,7 @@ fn main() {
     let transaction_bytes = hex::decode(transaction_hex).unwrap();
     let mut bytes_slice = transaction_bytes.as_slice();
 
-    println!("byte_slice memory address before calling read_version: {:p}\n", bytes_slice);
-
-    let version = read_version(&mut bytes_slice);
-
-    println!("byte_slice memory address after calling read_version: {:p}\n", bytes_slice);
-    println!("byte_slice after calling read_version: {:?}", bytes_slice);
+    let version = read_u32(&mut bytes_slice);
     println!("Version: {}", version);
 
     let input_length = read_compact_size_integer(&mut bytes_slice);
@@ -45,7 +36,25 @@ fn main() {
     for input_number in 0..input_length {
         let txid = read_txid(&mut bytes_slice);
         println!("txid[{}] = {:?}",input_number, txid);
+
+        let output_index = read_u32(&mut bytes_slice);
+        println!("output_index: {}", output_index);
+
+        let unlocking_script = read_unlocking_script(&mut bytes_slice);
+        println!("unlocking_script: {:?}", unlocking_script);
+
+        let sequence_number = read_u32(&mut bytes_slice);
+        println!("sequence_number: {}", sequence_number);
     }
+}
+
+fn read_unlocking_script(bytes_slice: &mut &[u8]) -> Vec<u8> {
+    let script_size = read_compact_size_integer(bytes_slice) as usize;
+    println!("script_size: {}", script_size);
+    let mut buffer = vec![0_u8; script_size];
+
+    bytes_slice.read(&mut buffer).unwrap();
+    buffer
 }
 
 fn read_txid(bytes_slice:&mut &[u8]) -> [u8; 32] {
