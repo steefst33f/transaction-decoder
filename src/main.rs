@@ -10,11 +10,26 @@ struct Input {
     script: String,
     sequence: u32,
 }
+#[derive(Debug, Serialize)]
+
+pub struct Amount(u64);
+impl Amount {
+    pub fn to_btc(&self) -> f64 {
+        self.0 as f64 / 100_000_000.0
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct Output {
+    amount: f64,
+    output_script: String,
+}
 
 #[derive(Debug, Serialize)]
 struct Transaction {
     version: u32,
     inputs: Vec<Input>,
+    outputs: Vec<Output>,
 }
 
 fn read_u32(bytes_slice: &mut &[u8]) -> u32 {
@@ -22,6 +37,12 @@ fn read_u32(bytes_slice: &mut &[u8]) -> u32 {
     let mut buffer = [0; 4];
     bytes_slice.read(&mut buffer).unwrap();
     u32::from_le_bytes(buffer)
+}
+
+fn read_u64(bytes_slice: &mut &[u8]) -> u64 {
+    let mut buffer = [0; 8];
+    bytes_slice.read(&mut buffer).unwrap();
+    u64::from_le_bytes(buffer)
 }
 
 fn main() {
@@ -44,7 +65,7 @@ fn main() {
         let output_index = read_u32(&mut bytes_slice);
         println!("output_index: {}", output_index);
 
-        let script = read_unlocking_script(&mut bytes_slice);
+        let script = read_script(&mut bytes_slice);
         println!("unlocking_script: {:?}", script);
 
         let sequence = read_u32(&mut bytes_slice);
@@ -58,16 +79,32 @@ fn main() {
         });
     }
 
+    let output_count = read_compact_size_integer(&mut bytes_slice);
+    println!("output_count: {}", output_count);
+    let mut outputs: Vec<Output> = vec![];
+
+    for _ in 0..output_count {
+        let amount = Amount(read_u64(&mut bytes_slice)).to_btc();
+        let output_script = read_script(&mut bytes_slice);
+
+        outputs.push(Output {
+            amount,
+            output_script
+        });
+    }
+
+
     let transaction = Transaction {
         version,
-        inputs
+        inputs,
+        outputs
     };
 
     let json_transaction = serde_json::to_string_pretty(&transaction).unwrap();
     println!("Transaction: {}", json_transaction);
 }
 
-fn read_unlocking_script(bytes_slice: &mut &[u8]) -> String {
+fn read_script(bytes_slice: &mut &[u8]) -> String {
     let script_size = read_compact_size_integer(bytes_slice) as usize;
     println!("script_size: {}", script_size);
     let mut buffer = vec![0_u8; script_size];
