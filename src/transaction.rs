@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use serde::{Serialize, Serializer};
 
+use crate::amount::{Amount, BitcoinValue};
+
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct Input {
@@ -9,25 +11,6 @@ pub struct Input {
     pub script: String,
     pub sequence: u32,
 }
-#[derive(Debug, Serialize)]
-
-pub struct Amount(u64);
-trait BitcoinValue {
-    fn to_btc(&self) -> f64;
-}
-
-impl Amount {
-    pub fn from_sat(satoshi: u64) -> Amount {
-        Amount(satoshi)
-    }
-}
-
-impl BitcoinValue for Amount {
-    fn to_btc(&self) -> f64 {
-        self.0 as f64 / 100_000_000.0
-    }
-}
-
 #[derive(Debug, Serialize)]
 pub struct Output {
     #[serde(serialize_with = "as_btc")]

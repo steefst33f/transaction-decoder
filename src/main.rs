@@ -1,7 +1,10 @@
 use std::io::Read;
 
 mod transaction;
-use transaction::{Amount, Input, Output, Transaction};
+use transaction::{Input, Output, Transaction};
+
+mod amount;
+use amount::Amount;
 
 
 fn read_u32(bytes_slice: &mut &[u8]) -> u32 {
