@@ -1,7 +1,8 @@
 use std::io::Read;
+use sha2::{Digest, Sha256};
 
 mod transaction;
-use transaction::{Input, Output, Transaction};
+use transaction::{Input, Output, Transaction, Txid};
 
 mod amount;
 use amount::Amount;
@@ -33,11 +34,10 @@ fn read_script(bytes_slice: &mut &[u8]) -> String {
     hex::encode(buffer)
 }
 
-fn read_txid(bytes_slice:&mut &[u8]) -> String {
+fn read_txid(bytes_slice:&mut &[u8]) -> Txid {
     let mut buffer = [0; 32];
     _ = bytes_slice.read(&mut buffer);
-    buffer.reverse();
-    hex::encode(buffer)
+    Txid::from_bytes(buffer)
 }
 
 pub fn read_compact_size_integer(bytes_slice: &mut &[u8]) -> u64 {
@@ -62,6 +62,18 @@ pub fn read_compact_size_integer(bytes_slice: &mut &[u8]) -> u64 {
             u64::from_le_bytes(buffer) as u64
         }
     }
+}
+
+fn hash_transaction(raw_transaction: &[u8]) -> Txid {
+    let mut hasher = Sha256::new();
+    hasher.update(&raw_transaction);
+    let hash1 = hasher.finalize();
+
+    let mut hasher = Sha256::new();
+    hasher.update(&hash1);
+    let hash2 = hasher.finalize();
+    
+    Txid::from_bytes(hash2.into())
 }
 
 
@@ -113,10 +125,18 @@ fn main() {
         });
     }
 
+    let locktime = read_u32(&mut bytes_slice);
+    println!("locktime: {}", locktime);
+
+    let txid = hash_transaction(&transaction_bytes);
+    println!("transaction_id: {:?}", txid);
+
     let transaction = Transaction {
+        txid,
         version,
         inputs,
-        outputs
+        outputs, 
+        locktime,
     };
 
     let json_transaction = serde_json::to_string_pretty(&transaction).unwrap();

@@ -6,7 +6,7 @@ use crate::amount::{Amount, BitcoinValue};
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
 pub struct Input {
-    pub txid: String,
+    pub txid: Txid,
     pub output_index: u32,
     pub script: String,
     pub sequence: u32,
@@ -25,7 +25,27 @@ fn as_btc<T: BitcoinValue, S: Serializer>(t: &T, s: S) -> Result<S::Ok, S::Error
 
 #[derive(Debug, Serialize)]
 pub struct Transaction {
+    pub txid: Txid,
     pub version: u32,
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
+    pub locktime: u32,
+}
+
+#[derive(Debug)]
+pub struct Txid([u8; 32]);
+
+impl Txid {
+    pub fn from_bytes(bytes: [u8; 32]) -> Txid {
+        Txid(bytes)
+    }
+}
+
+impl Serialize for Txid {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error>
+    {
+        let mut bytes = self.0.clone();
+        bytes.reverse();
+        s.serialize_str(&hex::encode(bytes))
+    }
 }
