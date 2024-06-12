@@ -50,17 +50,17 @@ pub fn read_compact_size_integer(bytes_slice: &mut &[u8]) -> std::io::Result<u64
         0..=252 => Ok(compact_size[0] as u64),
         253 => {
             let mut buffer = [0; 2];
-            bytes_slice.read(&mut buffer).unwrap();
+            bytes_slice.read(&mut buffer)?;
             Ok(u16::from_le_bytes(buffer) as u64)
         },
         254 => {
             let mut buffer = [0; 4];
-            bytes_slice.read(&mut buffer).unwrap();
+            bytes_slice.read(&mut buffer)?;
             Ok(u32::from_le_bytes(buffer) as u64)
         },
         255 => {
             let mut buffer = [0; 8];
-            bytes_slice.read(&mut buffer).unwrap();
+            bytes_slice.read(&mut buffer)?;
             Ok(u64::from_le_bytes(buffer) as u64)
         }
     }
