@@ -2,12 +2,30 @@ use std::io::Read;
 use std::error::Error;
 use std::result::Result;
 use sha2::{Digest, Sha256};
+use clap::{arg, value_parser, Command};
 
 mod transaction;
 use transaction::{Input, Output, Transaction, Txid};
 
 mod amount;
 use amount::Amount;
+
+pub fn get_arg() -> String {
+    let matches = Command::new("Bitcoin Transaction Decoder")
+        .version("1.0")
+        .about("Decodes a raw transaction")
+        .arg(
+            arg!([RAW_TRANSACTION])
+                .value_parser(value_parser!(String))
+                .required(true)
+        )
+        .get_matches();
+
+    matches
+        .get_one::<String>("RAW_TRANSACTION")
+        .cloned()
+        .expect("raw transaction is required")
+}
 
 fn read_u32(bytes_slice: &mut &[u8]) -> std::io::Result<u32> {
     // Read slice into a buffer
