@@ -5,6 +5,7 @@ use sha2::{Digest, Sha256};
 use clap::{arg, value_parser, Command};
 
 mod transaction;
+use self::transaction::{Decodable, Transaction,};
 use transaction::{Input, Output, Transaction, Txid};
 
 mod amount;
@@ -26,6 +27,78 @@ pub fn get_arg() -> String {
         .cloned()
         .expect("raw transaction is required")
 }
+
+pub fn decode(raw_transaction_hex: String) -> Result<Transaction, Box<dyn Error>> {
+    let transaction_bytes = hex::decode(raw_transaction_hex).map_err(|e| format!("Hex decodiong error: {}", e))?;
+    let mut bytes_slice = transaction_bytes.as_slice();
+    Ok(Transaction::consensus_decode(&mut bytes_slice)?)
+}
+
+pub fn run(raw_transaction_hex: String) -> Result<String, Box<dyn Error>> {
+    let transaction = decode(raw_transaction_hex)?;
+    Ok(serde_json::to_string_pretty(&transaction)?)
+
+    // let transaction_bytes = hex::decode(raw_transaction_hex).map_err(|e| format!("Hex decoding error: {}", e))?;
+    // let mut bytes_slice = transaction_bytes.as_slice();
+
+    // let version = read_u32(&mut bytes_slice)?;
+    // println!("Version: {}", version);
+
+    // let input_length = read_compact_size_integer(&mut bytes_slice)?;
+    // println!("input_length: {}", input_length);
+
+    // let mut inputs = vec![];
+
+    // for input_number in 0..input_length {
+    //     let txid = read_txid(&mut bytes_slice)?;
+    //     println!("txid[{}] = {:?}",input_number, txid);
+
+    //     let output_index = read_u32(&mut bytes_slice)?;
+    //     println!("output_index: {}", output_index);
+
+    //     let script = read_script(&mut bytes_slice)?;
+    //     println!("unlocking_script: {:?}", script);
+
+    //     let sequence = read_u32(&mut bytes_slice)?;
+    //     println!("sequence: {}", sequence);
+
+    //     inputs.push(Input {
+    //         txid,
+    //         output_index,
+    //         script,
+    //         sequence,
+    //     });
+    // }
+
+    // let output_count = read_compact_size_integer(&mut bytes_slice)?;
+    // println!("output_count: {}", output_count);
+    // let mut outputs: Vec<Output> = vec![];
+
+    // for _ in 0..output_count {
+    //     let amount = read_amount(&mut bytes_slice)?;
+    //     let output_script = read_script(&mut bytes_slice)?;
+
+    //     outputs.push(Output {
+    //         amount,
+    //         output_script
+    //     });
+    // }
+
+    // let locktime = read_u32(&mut bytes_slice)?;
+    // println!("locktime: {}", locktime);
+
+    // let txid = hash_transaction(&transaction_bytes);
+    // println!("transaction_id: {:?}", txid);
+
+    // let transaction = Transaction {
+    //     txid,
+    //     version,
+    //     inputs,
+    //     outputs, 
+    //     locktime,
+    // };
+}
+
 
 fn read_u32(bytes_slice: &mut &[u8]) -> std::io::Result<u32> {
     // Read slice into a buffer
@@ -94,70 +167,6 @@ fn hash_transaction(raw_transaction: &[u8]) -> Txid {
     let hash2 = hasher.finalize();
     
     Txid::from_bytes(hash2.into())
-}
-pub fn run(raw_transaction_hex: String) -> Result<String, Box<dyn Error>> {
-    let transaction_bytes = hex::decode(raw_transaction_hex).map_err(|e| format!("Hex decoding error: {}", e))?;
-    let mut bytes_slice = transaction_bytes.as_slice();
-
-    let version = read_u32(&mut bytes_slice)?;
-    println!("Version: {}", version);
-
-    let input_length = read_compact_size_integer(&mut bytes_slice)?;
-    println!("input_length: {}", input_length);
-
-    let mut inputs = vec![];
-
-    for input_number in 0..input_length {
-        let txid = read_txid(&mut bytes_slice)?;
-        println!("txid[{}] = {:?}",input_number, txid);
-
-        let output_index = read_u32(&mut bytes_slice)?;
-        println!("output_index: {}", output_index);
-
-        let script = read_script(&mut bytes_slice)?;
-        println!("unlocking_script: {:?}", script);
-
-        let sequence = read_u32(&mut bytes_slice)?;
-        println!("sequence: {}", sequence);
-
-        inputs.push(Input {
-            txid,
-            output_index,
-            script,
-            sequence,
-        });
-    }
-
-    let output_count = read_compact_size_integer(&mut bytes_slice)?;
-    println!("output_count: {}", output_count);
-    let mut outputs: Vec<Output> = vec![];
-
-    for _ in 0..output_count {
-        let amount = read_amount(&mut bytes_slice)?;
-        let output_script = read_script(&mut bytes_slice)?;
-
-        outputs.push(Output {
-            amount,
-            output_script
-        });
-    }
-
-    let locktime = read_u32(&mut bytes_slice)?;
-    println!("locktime: {}", locktime);
-
-    let txid = hash_transaction(&transaction_bytes);
-    println!("transaction_id: {:?}", txid);
-
-    let transaction = Transaction {
-        txid,
-        version,
-        inputs,
-        outputs, 
-        locktime,
-    };
-
-    let json_transaction = serde_json::to_string_pretty(&transaction)?;
-    Ok(json_transaction)
 }
 
 #[cfg(test)]
