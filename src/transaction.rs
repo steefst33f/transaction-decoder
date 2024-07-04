@@ -120,6 +120,22 @@ pub trait Encodable {
     fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error>; 
 }
 
+impl Encodable for u8 {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
+        let bytes = self.to_le_bytes();
+        let len = writer.write(bytes.as_slice()).map_err(Error::Io)?;
+        Ok(len)
+    }
+}
+
+impl Encodable for u16 {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
+        let bytes = self.to_le_bytes();
+        let len = writer.write(bytes.as_slice()).map_err(Error::Io)?;
+        Ok(len)
+    }
+}
+
 impl Encodable for u32 {
     fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
         let bytes = self.to_le_bytes();
@@ -128,10 +144,65 @@ impl Encodable for u32 {
     }
 }
 
+impl Encodable for u64 {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
+        let bytes = self.to_le_bytes();
+        let len = writer.write(bytes.as_slice()).map_err(Error::Io)?;
+        Ok(len)
+    }
+}
+
+impl Encodable for [u8; 32] {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
+        let len = writer.write(self.as_slice()).map_err(Error::Io)?;
+        Ok(len)
+    }
+}
+
+impl Encodable for String {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
+        let len = writer.write(self.as_bytes()).map_err(Error::Io)?;
+        Ok(len)
+    }
+}
+
+impl Encodable for Txid {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
+        let len = writer.write(self.0.as_slice()).map_err(Error::Io)?;
+        Ok(len)
+    }
+}
+
 impl Encodable for Version {
     fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
         let len = self.0.consensus_encode(writer)?;
         Ok(len)
+    }
+}
+
+impl Encodable for CompactSize {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
+        match self.0 {
+            0..=0xFC => {
+                (self.0 as u8).consensus_encode(writer)?;
+                Ok(1)
+            }
+            0xFD..=0xFFFF => {
+                writer.write([0xFD].as_slice()).map_err(Error::Io)?;
+                (self.0 as u16).consensus_encode(writer)?;
+                Ok(3)
+            }
+            0x10000..=0xFFFFFFFF => {
+                writer.write([0xFE].as_slice()).map_err(Error::Io)?;
+                (self.0 as u32).consensus_encode(writer)?;
+                Ok(5)
+            }
+            _ => {
+                writer.write([0xFF].as_slice()).map_err(Error::Io)?;
+                self.0.consensus_encode(writer)?;
+                Ok(9)
+            }
+        }
     }
 }
 
