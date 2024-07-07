@@ -3,7 +3,7 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 
-pub struct Amount(u64);
+pub struct Amount(pub u64);
 pub trait BitcoinValue {
     fn to_btc(&self) -> f64;
 }

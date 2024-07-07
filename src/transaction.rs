@@ -1,9 +1,7 @@
-use core::slice::SlicePattern;
 use std::{fmt::{Debug, *}, fs::read};
 use clap::{builder, error};
 use serde::{ser::SerializeStruct, Serialize, Serializer};
-use serde_json::de::Read;
-use sha2::{Digest, Sha256};
+use sha2::{digest::impl_oid_carrier, Digest, Sha256};
 use std::io::Read;
 
 use crate::amount::{Amount, BitcoinValue};
@@ -45,7 +43,6 @@ fn as_btc<T: BitcoinValue, S: Serializer>(t: &T, s: S) -> std::prelude::v1::Resu
 
 #[derive(Debug)]
 pub struct Transaction {
-    pub txid: Txid,
     pub version: Version,
     pub inputs: Vec<TxIn>,
     pub outputs: Vec<TxOut>,
@@ -54,8 +51,11 @@ pub struct Transaction {
 
 impl Transaction {
     pub fn txid(&self) -> Txid {
-        let txid_data = Vec::new();
-        self.version.consensus_encode(&mut txi)
+        let mut txid_data = Vec::new();
+        self.version.consensus_encode(&mut txid_data).unwrap();
+        self.inputs.consensus_encode(&mut txid_data).unwrap();
+        self.outputs.consensus_encode(&mut txid_data).unwrap();
+        self.locktime.consensus_encode(&mut txid_data).unwrap();
         Txid::new(txid_data)
     }
 }
@@ -168,8 +168,7 @@ impl Encodable for String {
 
 impl Encodable for Txid {
     fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
-        let len = writer.write(self.0.as_slice()).map_err(Error::Io)?;
-        Ok(len)
+        Ok(self.0.consensus_encode(writer)?)
     }
 }
 
@@ -206,6 +205,48 @@ impl Encodable for CompactSize {
     }
 }
 
+impl Encodable for TxIn {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
+        let mut len = 0;
+        len += self.previous_txid.consensus_encode(writer)?;
+        len += self.previous_vout.consensus_encode(writer)?;
+        len += self.script_sig.consensus_encode(writer)?;
+        len += self.sequence.consensus_encode(writer)?;
+        Ok(len)
+    }
+}
+
+impl Encodable for Vec<TxIn> {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
+        let mut len = 0;
+        len += CompactSize(self.len() as u64).consensus_encode(writer)?;
+        for tx_in in self.iter() {
+            len += tx_in.consensus_encode(writer)?;
+        }
+        Ok(len)
+    }
+}
+
+impl Encodable for TxOut {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
+        let mut len = 0;
+        len += self.amount.0.consensus_encode(writer)?;
+        len += self.script_pubkey.consensus_encode(writer)?;
+        Ok(len)
+    }
+}
+
+impl Encodable for Vec<TxOut> {
+    fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
+        let mut len = 0;
+        len += CompactSize(self.len() as u64).consensus_encode(writer)?;
+        for tx_out in self.iter() {
+            len += tx_out.consensus_encode(writer)?;
+        }
+        Ok(len)
+    }
+}
+
 pub trait Decodable: Sized {
     fn consensus_decode<R: std::io::Read>(reader: &mut R) -> std::prelude::v1::Result<Self, Error>;
 }
@@ -213,7 +254,7 @@ pub trait Decodable: Sized {
 impl Decodable for u8 {
     fn consensus_decode<R: std::io::Read>(reader: &mut R) -> std::prelude::v1::Result<Self, Error> {
         let mut buffer = [0; 1];
-        reader.read_exact(buffer).map_err(Error::Io)?;
+        reader.read_exact(&mut buffer).map_err(Error::Io)?;
         Ok(u8::from_be_bytes(buffer))
     }
 }
@@ -221,7 +262,7 @@ impl Decodable for u8 {
 impl Decodable for u16 {
     fn consensus_decode<R: std::io::Read>(reader: &mut R) -> std::prelude::v1::Result<Self, Error> {
         let mut buffer = [0; 2];
-        reader.read_exact(buffer).map_err(Error::Io)?;
+        reader.read_exact(&mut buffer).map_err(Error::Io)?;
         Ok(u16::from_be_bytes(buffer))
     }
 }
@@ -243,7 +284,7 @@ impl Decodable for Version {
 impl Decodable for u64 {
     fn consensus_decode<R: std::io::Read>(reader: &mut R) -> std::prelude::v1::Result<Self, Error> {
         let mut buffer = [0; 8];
-        reader.read_exact(buffer).map_err(Error::Io)?;
+        reader.read_exact(&mut buffer).map_err(Error::Io)?;
         Ok(u64::from_be_bytes(buffer))
     }
 }
