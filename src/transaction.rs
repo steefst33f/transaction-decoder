@@ -1,8 +1,6 @@
-use std::{fmt::{Debug, *}, fs::read};
-use clap::{builder, error};
+use std::{fmt::Debug, io::Bytes};
 use serde::{ser::SerializeStruct, Serialize, Serializer};
-use sha2::{digest::impl_oid_carrier, Digest, Sha256};
-use std::io::Read;
+use sha2::{Digest, Sha256};
 
 use crate::amount::{Amount, BitcoinValue};
 
@@ -20,26 +18,6 @@ impl std::fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
-
-#[allow(dead_code)]
-#[derive(Debug, Serialize)]
-pub struct TxIn {
-    pub previous_txid: Txid,
-    pub previous_vout: u32,
-    pub script_sig: String,
-    pub sequence: u32,
-}
-#[derive(Debug, Serialize)]
-pub struct TxOut {
-    #[serde(serialize_with = "as_btc")]
-    pub amount: Amount,
-    pub script_pubkey: String,
-}
-
-fn as_btc<T: BitcoinValue, S: Serializer>(t: &T, s: S) -> std::prelude::v1::Result<S::Ok, S::Error> {
-    let btc = t.to_btc();
-    s.serialize_f64(btc)
-}
 
 #[derive(Debug)]
 pub struct Transaction {
@@ -75,14 +53,29 @@ impl Serialize for Transaction {
     }
 }
 
+
+#[allow(dead_code)]
+#[derive(Debug, Serialize)]
+pub struct TxIn {
+    pub previous_txid: Txid,
+    pub previous_vout: u32,
+    pub script_sig: String,
+    pub sequence: u32,
+}
+#[derive(Debug, Serialize)]
+pub struct TxOut {
+    #[serde(serialize_with = "as_btc")]
+    pub amount: Amount,
+    pub script_pubkey: String,
+}
+
+fn as_btc<T: BitcoinValue, S: Serializer>(t: &T, s: S) -> std::prelude::v1::Result<S::Ok, S::Error> {
+    let btc = t.to_btc();
+    s.serialize_f64(btc)
+}
+
 #[derive(Debug)]
 pub struct Txid([u8; 32]);
-
-impl Txid {
-    pub fn from_bytes(bytes: [u8; 32]) -> Txid {
-        Txid(bytes)
-    }
-}
 
 impl Txid {
     pub fn new(data: Vec<u8>) -> Txid {
@@ -94,7 +87,7 @@ impl Txid {
         hasher.update(&hash1);
         let hash2 = hasher.finalize();
         
-        Txid::from_bytes(hash2.into())
+        Txid(hash2.into())
     }
     
 }
@@ -161,7 +154,9 @@ impl Encodable for [u8; 32] {
 
 impl Encodable for String {
     fn consensus_encode<W: std::io::Write>(&self, writer: &mut W) -> std::prelude::v1::Result<usize, Error> {
-        let len = writer.write(self.as_bytes()).map_err(Error::Io)?;
+        let bytes = hex::decode(self).expect("Expected a hex String");
+        let mut len = CompactSize(bytes.len() as u64).consensus_encode(writer)?;
+        len += writer.write(&bytes).map_err(Error::Io)?;
         Ok(len)
     }
 }
@@ -255,7 +250,7 @@ impl Decodable for u8 {
     fn consensus_decode<R: std::io::Read>(reader: &mut R) -> std::prelude::v1::Result<Self, Error> {
         let mut buffer = [0; 1];
         reader.read_exact(&mut buffer).map_err(Error::Io)?;
-        Ok(u8::from_be_bytes(buffer))
+        Ok(u8::from_le_bytes(buffer))
     }
 }
 
@@ -263,7 +258,7 @@ impl Decodable for u16 {
     fn consensus_decode<R: std::io::Read>(reader: &mut R) -> std::prelude::v1::Result<Self, Error> {
         let mut buffer = [0; 2];
         reader.read_exact(&mut buffer).map_err(Error::Io)?;
-        Ok(u16::from_be_bytes(buffer))
+        Ok(u16::from_le_bytes(buffer))
     }
 }
 
@@ -271,7 +266,7 @@ impl Decodable for u32 {
     fn consensus_decode<R: std::io::Read>(reader: &mut R) -> std::prelude::v1::Result<Self, Error> {
         let mut buffer = [0; 4];
         reader.read_exact(&mut buffer).map_err(Error::Io)?;
-        Ok(u32::from_be_bytes(buffer))
+        Ok(u32::from_le_bytes(buffer))
     }
 }
 
@@ -285,7 +280,7 @@ impl Decodable for u64 {
     fn consensus_decode<R: std::io::Read>(reader: &mut R) -> std::prelude::v1::Result<Self, Error> {
         let mut buffer = [0; 8];
         reader.read_exact(&mut buffer).map_err(Error::Io)?;
-        Ok(u64::from_be_bytes(buffer))
+        Ok(u64::from_le_bytes(buffer))
     }
 }
 
