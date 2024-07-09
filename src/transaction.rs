@@ -47,7 +47,7 @@ impl Serialize for Transaction {
         where
             S: Serializer {
                 let mut tx = serializer.serialize_struct("Transaction", 5)?;
-                tx.serialize_field("transaction id", &self.txid())?;
+                tx.serialize_field("transaction_id", &self.txid())?;
                 tx.serialize_field("version", &self.version)?;
                 tx.serialize_field("inputs", &self.inputs)?;
                 tx.serialize_field("outputs", &self.outputs)?;
@@ -88,13 +88,32 @@ impl Serialize for Witness {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct TxIn {
     pub previous_txid: Txid,
     pub previous_vout: u32,
     pub script_sig: String,
     pub sequence: u32,
     pub witness: Witness,
+}
+
+impl Serialize for TxIn {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer {
+        let mut txin = serializer.serialize_struct( "TxIn", 4)?;
+        txin.serialize_field("previous_txid", &self.previous_txid)?;
+        txin.serialize_field("previous_vout", &self.previous_vout)?;
+
+        if self.witness.is_empty() {
+            txin.serialize_field("script_sig", &self.script_sig)?;
+        } else {
+            txin.serialize_field("txinwitness", &self.witness)?;
+        }
+
+        txin.serialize_field("sequence", &self.sequence)?;
+        txin.end()
+    }
 }
 #[derive(Debug, Serialize)]
 pub struct TxOut {
@@ -367,7 +386,7 @@ impl Decodable for Witness {
             let len = CompactSize::consensus_decode(reader)?.0;
             println!("witness buffer len: {}", len);
             let mut buffer = vec![0; len as usize];
-            reader.read(&mut buffer).map_err(Error::Io)?;
+            reader.read_exact(&mut buffer).map_err(Error::Io)?;
             witness_items.push(buffer);
         }
         Ok(Witness{
@@ -383,7 +402,7 @@ impl Decodable for TxIn {
             previous_vout: u32::consensus_decode(reader)?,
             script_sig: String::consensus_decode(reader)?,
             sequence: u32::consensus_decode(reader)?,
-            witness: Witness::consensus_decode(reader)?,
+            witness: Witness::new(), //Is not in the input, but outside , so wiil be added later.
         })
     }
 }
