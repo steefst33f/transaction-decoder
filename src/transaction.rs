@@ -1,4 +1,4 @@
-use std::{fmt::Debug, io::Bytes};
+use std::{fmt::{write, Debug}, io::Bytes};
 use serde::{ser::SerializeStruct, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 
@@ -7,12 +7,16 @@ use crate::amount::{Amount, BitcoinValue};
 #[derive(Debug)]
 pub enum Error {
     Io(std::io::Error),
+    ParseFailed( &'static str),
+    UnsuportedSegwithFlag(u8),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
-            Error::Io(ref e) => write!(f, "IO error: {}", e)
+            Error::Io(ref e) => write!(f, "IO error: {}", e),
+            Error::ParseFailed(s) => write!(f, "parse failed: {}", s),
+            Error::UnsuportedSegwithFlag(swflag) => write!(f, "unsupported segwit version {}", swflag),
         }
     }
 }
@@ -53,6 +57,35 @@ impl Serialize for Transaction {
     }
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct Witness {
+    content: Vec<Vec<u8>>,
+}
+
+impl Witness {
+    pub fn new() -> Self {
+        Witness { content: vec![] }
+    }
+    fn is_empty(&self) -> bool {
+        self.content.is_empty()
+    }
+}
+
+impl Serialize for Witness {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer 
+        {
+            use serde::ser::SerializeSeq;
+
+            let mut seq = serializer.serialize_seq(Some(self.content.len()))?;
+            for elem in self.content.iter() {
+                seq.serialize_element(&hex::encode(&elem))?;
+            }
+            seq.end()
+        }
+}
 
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
@@ -61,6 +94,7 @@ pub struct TxIn {
     pub previous_vout: u32,
     pub script_sig: String,
     pub sequence: u32,
+    pub witness: Witness,
 }
 #[derive(Debug, Serialize)]
 pub struct TxOut {
@@ -325,6 +359,23 @@ impl Decodable for Txid {
     }
 }
 
+impl Decodable for Witness {
+    fn consensus_decode<R: std::io::Read>(reader: &mut R) -> std::prelude::v1::Result<Self, Error> {
+        let mut witness_items = vec![];
+        let count = u8::consensus_decode(reader)?;
+        for _ in 0..count {
+            let len = CompactSize::consensus_decode(reader)?.0;
+            println!("witness buffer len: {}", len);
+            let mut buffer = vec![0; len as usize];
+            reader.read(&mut buffer).map_err(Error::Io)?;
+            witness_items.push(buffer);
+        }
+        Ok(Witness{
+            content: witness_items
+        })
+    }
+}
+
 impl Decodable for TxIn {
     fn consensus_decode<R: std::io::Read>(reader: &mut R) -> std::prelude::v1::Result<Self, Error> {
         Ok(TxIn {
@@ -332,6 +383,7 @@ impl Decodable for TxIn {
             previous_vout: u32::consensus_decode(reader)?,
             script_sig: String::consensus_decode(reader)?,
             sequence: u32::consensus_decode(reader)?,
+            witness: Witness::consensus_decode(reader)?,
         })
     }
 }
@@ -368,12 +420,39 @@ impl Decodable for Vec<TxOut> {
 
 impl Decodable for Transaction {
     fn consensus_decode<R: std::io::Read>(reader: &mut R) -> std::prelude::v1::Result<Self, Error> {
-        Ok(Transaction {
-            version: Version::consensus_decode(reader)?,
-            inputs: Vec::<TxIn>::consensus_decode(reader)?,
-            outputs: Vec::<TxOut>::consensus_decode(reader)?,
-            locktime: u32::consensus_decode(reader)?,
-        })
+        let version = Version::consensus_decode(reader)?;
+        let inputs = Vec::<TxIn>::consensus_decode(reader)?; //Marker 00 reads as Zero inputs
+        if inputs.is_empty() {
+            let segwit_flag = u8::consensus_decode(reader)?;
+            match segwit_flag {
+                1 => {
+                    let mut inputs = Vec::<TxIn>::consensus_decode(reader)?;
+                    let outputs = Vec::<TxOut>::consensus_decode(reader)?;
+                    for txin in inputs.iter_mut() {
+                        txin.witness = Witness::consensus_decode(reader)?;
+                    }
+                    if !inputs.is_empty() && inputs.iter().all(|input| input.witness.is_empty()) {
+                        Err(Error::ParseFailed("Witness flag set but no witnesses present"))
+                    } else {
+                        Ok( Transaction {
+                            version,
+                            inputs,
+                            outputs,
+                            locktime: u32::consensus_decode(reader)?,
+                        })
+                    }
+                }
+                x => Err(Error::UnsuportedSegwithFlag(x)),
+            }
+        // non-segwit
+        } else {
+            Ok(Transaction {
+                version: version,
+                inputs: inputs,
+                outputs: Vec::<TxOut>::consensus_decode(reader)?,
+                locktime: u32::consensus_decode(reader)?,
+            })
+        }
     }
 }
 
